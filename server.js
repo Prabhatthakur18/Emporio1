@@ -8,24 +8,25 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // Middleware to parse JSON requests
 
-// MySQL database connection
-const db = mysql.createConnection({
+// MySQL database connection pool
+const db = mysql.createPool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     connectionLimit: 2000,
-    waitForConnections:true,
-    queueLimit:0
+    waitForConnections: true,
+    queueLimit: 0
 });
 
 // Check database connection
-db.connect(err => {
+db.getConnection((err, connection) => {
     if (err) {
         console.error('Error connecting to the database:', err);
         process.exit(1); // Exit if database connection fails
     }
     console.log('Connected to the database');
+    connection.release(); // Release the connection after check
 });
 
 // Root route
