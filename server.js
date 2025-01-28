@@ -14,7 +14,9 @@ const db = mysql.createConnection({
     host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
-    connectionLimit: 20,
+    connectionLimit: 2000,
+    waitForConnections:true,
+    queueLimit:0
 });
 
 // Check database connection
