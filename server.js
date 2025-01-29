@@ -15,8 +15,17 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 1000, // High limit (adjust as per server capacity)
+    connectionLimit: 100, // Optimized limit
     queueLimit: 0, // Unlimited queue
+});
+
+// Global Error Handlers
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Root route
@@ -29,7 +38,6 @@ app.get('/autoform', async (req, res) => {
     const sql = "SELECT * FROM cities";
     let connection;
     try {
-        // Create a new connection for each request
         connection = await pool.getConnection();
         const [data] = await connection.query(sql);
         res.json(data);
@@ -37,7 +45,7 @@ app.get('/autoform', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Database error', error: err });
     } finally {
-        if (connection) connection.release(); // Ensure connection is released
+        if (connection) connection.release();
     }
 });
 
@@ -46,7 +54,6 @@ app.get('/getallstate', async (req, res) => {
     const sql = "SELECT * FROM states";
     let connection;
     try {
-        // Create a new connection for each request
         connection = await pool.getConnection();
         const [data] = await connection.query(sql);
         res.json(data);
@@ -54,7 +61,7 @@ app.get('/getallstate', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Database error', error: err });
     } finally {
-        if (connection) connection.release(); // Ensure connection is released
+        if (connection) connection.release();
     }
 });
 
@@ -69,7 +76,6 @@ app.post('/getCitiesByState', async (req, res) => {
     const sql = "SELECT * FROM cities WHERE StateID = ?";
     let connection;
     try {
-        // Create a new connection for each request
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [state_id]);
         if (data.length === 0) {
@@ -80,7 +86,7 @@ app.post('/getCitiesByState', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error' });
     } finally {
-        if (connection) connection.release(); // Ensure connection is released
+        if (connection) connection.release();
     }
 });
 
@@ -95,7 +101,6 @@ app.post('/getStore', async (req, res) => {
     const sql = "SELECT * FROM autoform WHERE CityID = ?";
     let connection;
     try {
-        // Create a new connection for each request
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [cityid]);
         if (data.length === 0) {
@@ -106,7 +111,7 @@ app.post('/getStore', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error' });
     } finally {
-        if (connection) connection.release(); // Ensure connection is released
+        if (connection) connection.release();
     }
 });
 
@@ -118,10 +123,9 @@ app.post('/getStorebyname', async (req, res) => {
         return res.status(400).json({ message: 'City name is required' });
     }
 
-    const sql = `SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE cityname = ?)`;
+    const sql = `SELECT * FROM autoform WHERE CityID IN (SELECT CityID FROM cities WHERE cityname = ?)`;
     let connection;
     try {
-        // Create a new connection for each request
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [cityname]);
         if (data.length === 0) {
@@ -132,7 +136,7 @@ app.post('/getStorebyname', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error' });
     } finally {
-        if (connection) connection.release(); // Ensure connection is released
+        if (connection) connection.release();
     }
 });
 
@@ -144,10 +148,9 @@ app.post('/getStorebyState', async (req, res) => {
         return res.status(400).json({ message: 'State ID is required' });
     }
 
-    const sql = `SELECT * FROM autoform WHERE stateid = (SELECT stateid FROM states WHERE statename = ?)`;
+    const sql = `SELECT * FROM autoform WHERE stateid IN (SELECT stateid FROM states WHERE statename = ?)`;
     let connection;
     try {
-        // Create a new connection for each request
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [stateid]);
         if (data.length === 0) {
@@ -158,12 +161,13 @@ app.post('/getStorebyState', async (req, res) => {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error' });
     } finally {
-        if (connection) connection.release(); // Ensure connection is released
+        if (connection) connection.release();
     }
 });
 
 // Start the server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}/Listening`);
+    console.log(`Server is running on port ${PORT}`);
 });
+
