@@ -8,7 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // Middleware to parse JSON requests
 
-// MySQL database connection pool
+// MySQL connection pool
 const pool = mysql.createPool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -22,6 +22,7 @@ const pool = mysql.createPool({
 // Global Error Handlers
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception:', err);
+    process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -30,10 +31,25 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Root route
 app.get('/', (req, res) => {
-    res.json("From backend side running");
+    res.json("Backend is running");
 });
 
-// Get all cities
+// **Health Check Route**
+app.get('/health', async (req, res) => {
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        await connection.ping();
+        res.status(200).json({ message: "Database connection is healthy" });
+    } catch (err) {
+        console.error('Database connection failed:', err);
+        res.status(500).json({ message: "Database connection failed", error: err.message });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// **Get all cities**
 app.get('/autoform', async (req, res) => {
     const sql = "SELECT * FROM cities";
     let connection;
@@ -43,13 +59,13 @@ app.get('/autoform', async (req, res) => {
         res.json(data);
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Database error', error: err });
+        res.status(500).json({ message: 'Database error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Get all states
+// **Get all states**
 app.get('/getallstate', async (req, res) => {
     const sql = "SELECT * FROM states";
     let connection;
@@ -59,13 +75,13 @@ app.get('/getallstate', async (req, res) => {
         res.json(data);
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Database error', error: err });
+        res.status(500).json({ message: 'Database error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Get cities by state ID
+// **Get cities by state ID**
 app.post('/getCitiesByState', async (req, res) => {
     const { state_id } = req.body;
 
@@ -78,19 +94,16 @@ app.post('/getCitiesByState', async (req, res) => {
     try {
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [state_id]);
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No cities found for the given state ID' });
-        }
         res.json(data);
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'Internal server error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Get stores by city ID
+// **Get stores by city ID**
 app.post('/getStore', async (req, res) => {
     const { cityid } = req.body;
 
@@ -103,19 +116,16 @@ app.post('/getStore', async (req, res) => {
     try {
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [cityid]);
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No stores found for the given city ID' });
-        }
         res.json(data);
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'Internal server error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Get stores by city name
+// **Get stores by city name**
 app.post('/getStorebyname', async (req, res) => {
     const { cityname } = req.body;
 
@@ -128,38 +138,32 @@ app.post('/getStorebyname', async (req, res) => {
     try {
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [cityname]);
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No stores found for the given city name' });
-        }
         res.json(data);
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'Internal server error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
 });
 
-// Get stores by state name
+// **Get stores by state name (Fixed query)**
 app.post('/getStorebyState', async (req, res) => {
-    const { stateid } = req.body;
+    const { statename } = req.body;
 
-    if (!stateid) {
-        return res.status(400).json({ message: 'State ID is required' });
+    if (!statename) {
+        return res.status(400).json({ message: 'State name is required' });
     }
 
-    const sql = `SELECT * FROM autoform WHERE stateid IN (SELECT stateid FROM states WHERE statename = ?)`;
+    const sql = `SELECT * FROM autoform WHERE StateID IN (SELECT StateID FROM states WHERE statename = ?)`;
     let connection;
     try {
         connection = await pool.getConnection();
-        const [data] = await connection.query(sql, [stateid]);
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No stores found for the given state name' });
-        }
+        const [data] = await connection.query(sql, [statename]);
         res.json(data);
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'Internal server error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
@@ -170,4 +174,3 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-
