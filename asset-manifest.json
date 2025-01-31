@@ -1,0 +1,17 @@
+{
+  "files": {
+    "main.css": "/static/css/main.ad63e3d3.css",
+    "main.js": "/static/js/main.91ceb22c.js",
+    "static/js/453.43b146a6.chunk.js": "/static/js/453.43b146a6.chunk.js",
+    "static/media/Banner.png": "/static/media/Banner.63a7d3e231f79dd7a9e3.png",
+    "static/media/autologo.png": "/static/media/autologo.294c31b3ed492906107d.png",
+    "index.html": "/index.html",
+    "main.ad63e3d3.css.map": "/static/css/main.ad63e3d3.css.map",
+    "main.91ceb22c.js.map": "/static/js/main.91ceb22c.js.map",
+    "453.43b146a6.chunk.js.map": "/static/js/453.43b146a6.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.ad63e3d3.css",
+    "static/js/main.91ceb22c.js"
+  ]
+}
