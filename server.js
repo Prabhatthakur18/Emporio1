@@ -24,6 +24,35 @@ app.get('/', (req, res) => {
     res.json("From backend side running");
 });
 
+
+
+// Get state description by StateID
+app.post('/getStateDescription', async (req, res) => {
+    const { stateid } = req.body;
+
+    if (!stateid) {
+        return res.status(400).json({ message: 'State ID is required' });
+    }
+
+    const sql = "SELECT Description FROM states WHERE StateID = ?";
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [data] = await connection.query(sql, [stateid]);
+
+        if (data.length === 0) {
+            return res.status(404).json({ message: 'No description found for the given state ID' });
+        }
+
+        res.json(data[0]); // Return the description
+    } catch (err) {
+        console.error('Database error:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 // Get all cities
 app.get('/autoform', async (req, res) => {
     const sql = "SELECT * FROM cities";
