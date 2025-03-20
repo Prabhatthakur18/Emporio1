@@ -26,6 +26,37 @@ app.get('/', (req, res) => {
     res.json("From backend side running");
 });
 
+
+
+//Api to fetch the Page Description as per the Selected state,
+app.post('/getStateDescription', async (req, res) => {
+    const { state_id } = req.body;
+
+    if (!state_id) {
+        return res.status(400).json({ message: 'State ID is required' });
+    }
+
+    const sql = "SELECT Description FROM states WHERE StateID = ?";
+    let connection;
+    try {
+        connection = await pool.getConnection();
+        const [data] = await connection.query(sql, [state_id]);
+
+        if (data.length === 0) {
+            return res.status(404).json({ message: 'State description not found' });
+        }
+        res.json({ description: data[0].Description });
+    } catch (err) {
+        console.error('Database error:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+
+
+
 // Get all cities
 app.get('/autoform', async (req, res) => {
     const sql = "SELECT * FROM cities";
