@@ -1,14 +1,14 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
-require('dotenv').config(); // Load environment variables
+require('dotenv').config();
 
 const app = express();
 
 app.use(cors());
-app.use(express.json()); // Middleware to parse JSON requests
+app.use(express.json());
 
-// ✅ Optimized MySQL Connection Pool for Serverless (Vercel)
+//  Optimized MySQL Connection Pool
 let pool;
 async function getDBConnection() {
     if (!pool) {
@@ -18,19 +18,19 @@ async function getDBConnection() {
             password: process.env.DB_PASSWORD,
             database: process.env.DB_DATABASE,
             waitForConnections: true,
-            connectionLimit: 5, // Lower limit for serverless
+            connectionLimit: 5,
             queueLimit: 0
         });
     }
     return pool.getConnection();
 }
 
-// ✅ Root Route
+// Root Route
 app.get('/', (req, res) => {
     res.json("Backend is running successfully!");
 });
 
-// ✅ Get State Description
+//  Get State Description
 app.post('/getStateDescription', async (req, res) => {
     const { state_id } = req.body;
     if (!state_id) return res.status(400).json({ message: 'State ID is required' });
@@ -51,7 +51,7 @@ app.post('/getStateDescription', async (req, res) => {
     }
 });
 
-// ✅ Get All Cities
+// Get All Cities
 app.get('/autoform', async (req, res) => {
     const sql = "SELECT * FROM cities";
     let connection;
@@ -67,7 +67,7 @@ app.get('/autoform', async (req, res) => {
     }
 });
 
-// ✅ Get All States
+//  Get All States
 app.get('/getallstate', async (req, res) => {
     const sql = "SELECT * FROM states";
     let connection;
@@ -83,7 +83,7 @@ app.get('/getallstate', async (req, res) => {
     }
 });
 
-// ✅ Get Cities by State ID
+//  Get Cities by State ID
 app.post('/getCitiesByState', async (req, res) => {
     const { state_id } = req.body;
     if (!state_id) return res.status(400).json({ message: 'State ID is required' });
@@ -104,7 +104,7 @@ app.post('/getCitiesByState', async (req, res) => {
     }
 });
 
-// ✅ Get Stores by City ID
+//  Get Stores by City ID
 app.post('/getStore', async (req, res) => {
     const { cityid } = req.body;
     if (!cityid) return res.status(400).json({ message: 'City ID is required' });
@@ -125,33 +125,12 @@ app.post('/getStore', async (req, res) => {
     }
 });
 
-// ✅ Get Stores by City Name
-app.post('/getStorebyname', async (req, res) => {
-    const { cityname } = req.body;
-    if (!cityname) return res.status(400).json({ message: 'City name is required' });
-
-    const sql = `SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE cityname = ?)`;
-    let connection;
-    try {
-        connection = await getDBConnection();
-        const [data] = await connection.query(sql, [cityname]);
-        if (data.length === 0) return res.status(404).json({ message: 'No stores found for the given city name' });
-
-        res.json(data);
-    } catch (err) {
-        console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
-    } finally {
-        if (connection) connection.release();
-    }
-});
-
-// ✅ Get Stores by State ID
+//  Get Stores by State ID
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
 
-    const sql = `SELECT * FROM autoform WHERE StateID = ?`;
+    const sql = "SELECT * FROM autoform WHERE StateID = ?";
     let connection;
     try {
         connection = await getDBConnection();
@@ -167,9 +146,32 @@ app.post('/getStorebyState', async (req, res) => {
     }
 });
 
-// ✅ Start Server
+//  Get Store Timings Based on Current Day
+app.post('/getStoreTimings', async (req, res) => {
+    const { storeid } = req.body;
+    if (!storeid) return res.status(400).json({ message: 'Store ID is required' });
+
+    // Get today's day name dynamically
+    const today = new Date().toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
+
+    const sql = `SELECT ${today} AS timings FROM timings WHERE StoreID = ?`;
+    let connection;
+    try {
+        connection = await getDBConnection();
+        const [data] = await connection.query(sql, [storeid]);
+        if (data.length === 0 || !data[0].timings) return res.status(404).json({ message: 'No timings found for this store today' });
+
+        res.json({ storeid, today, timings: data[0].timings });
+    } catch (err) {
+        console.error('Database error:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+//  Start Server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-
