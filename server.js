@@ -32,17 +32,27 @@ app.get('/', (req, res) => {
 
 //  Get State Description
 app.post('/getStateDescription', async (req, res) => {
-    const { state_id } = req.body;
-    if (!state_id) return res.status(400).json({ message: 'State ID is required' });
+    const { city_name } = req.body;
+    if (!city_name) return res.status(400).json({ message: 'City name is required' });
 
-    const sql = "SELECT Description FROM states WHERE StateID = ?";
+    const getStateIdQuery = "SELECT StateID FROM cities WHERE CityName = ?";
+    const getStateDescQuery = "SELECT Description FROM states WHERE StateID = ?";
+    
     let connection;
     try {
         connection = await getDBConnection();
-        const [data] = await connection.query(sql, [state_id]);
-        if (data.length === 0) return res.status(404).json({ message: 'State description not found' });
+        
+        // Fetch StateID using CityName
+        const [stateData] = await connection.query(getStateIdQuery, [city_name]);
+        if (stateData.length === 0) return res.status(404).json({ message: 'City not found' });
 
-        res.json({ description: data[0].Description });
+        const stateId = stateData[0].StateID;
+
+        // Fetch Description using StateID
+        const [descData] = await connection.query(getStateDescQuery, [stateId]);
+        if (descData.length === 0) return res.status(404).json({ message: 'State description not found' });
+
+        res.json({ description: descData[0].Description });
     } catch (err) {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error' });
