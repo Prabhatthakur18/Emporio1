@@ -32,27 +32,47 @@ app.get('/', (req, res) => {
 
 //  Get State Description
 app.post('/getStateDescription', async (req, res) => {
-    const { city_name } = req.body;
-    if (!city_name) return res.status(400).json({ message: 'City name is required' });
-
-    const getStateIdQuery = "SELECT StateID FROM cities WHERE CityName = ?";
-    const getStateDescQuery = "SELECT Description FROM states WHERE StateID = ?";
+    const { city_name, state_name } = req.body;
     
+    if (!city_name && !state_name) {
+        return res.status(400).json({ message: 'City name or State name is required' });
+    }
+
     let connection;
     try {
         connection = await getDBConnection();
-        
-        // Fetch StateID using CityName
-        const [stateData] = await connection.query(getStateIdQuery, [city_name]);
-        if (stateData.length === 0) return res.status(404).json({ message: 'City not found' });
 
-        const stateId = stateData[0].StateID;
+        let stateId = null;
+
+        // If city_name is provided, get StateID from cities table
+        if (city_name) {
+            const getStateIdQuery = "SELECT StateID FROM cities WHERE CityName = ?";
+            const [stateData] = await connection.query(getStateIdQuery, [city_name]);
+            if (stateData.length === 0) {
+                return res.status(404).json({ message: 'City not found' });
+            }
+            stateId = stateData[0].StateID;
+        }
+
+        // If state_name is provided, get StateID directly
+        if (state_name) {
+            const getStateQuery = "SELECT StateID FROM states WHERE StateName = ?";
+            const [stateData] = await connection.query(getStateQuery, [state_name]);
+            if (stateData.length === 0) {
+                return res.status(404).json({ message: 'State not found' });
+            }
+            stateId = stateData[0].StateID;
+        }
 
         // Fetch Description using StateID
+        const getStateDescQuery = "SELECT Description FROM states WHERE StateID = ?";
         const [descData] = await connection.query(getStateDescQuery, [stateId]);
-        if (descData.length === 0) return res.status(404).json({ message: 'State description not found' });
+        if (descData.length === 0) {
+            return res.status(404).json({ message: 'State description not found' });
+        }
 
         res.json({ description: descData[0].Description });
+
     } catch (err) {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error' });
@@ -60,6 +80,7 @@ app.post('/getStateDescription', async (req, res) => {
         if (connection) connection.release();
     }
 });
+
 
 // Get All Cities
 app.get('/autoform', async (req, res) => {
