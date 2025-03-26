@@ -58,20 +58,28 @@ app.post('/getStoreTimings', async (req, res) => {
     const { storeid } = req.body;
     if (!storeid) return res.status(400).json({ message: 'Store ID is required' });
 
-    // Get today's day name dynamically
     const today = new Date().toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
+    console.log(`Fetching store timings for StoreID: ${storeid}, Day: ${today}`);
 
     const sql = `SELECT ${today} AS timings FROM timings WHERE StoreID = ?`;
+
     let connection;
     try {
         connection = await getDBConnection();
+        console.log("Database connected successfully");
+        
         const [data] = await connection.query(sql, [storeid]);
-        if (data.length === 0 || !data[0].timings) return res.status(404).json({ message: 'No timings found for this store today' });
+        console.log("Query result:", data);
+
+        if (data.length === 0 || !data[0].timings) {
+            console.log("No timings found for this store today.");
+            return res.status(404).json({ message: 'No timings found for this store today' });
+        }
 
         res.json({ storeid, today, timings: data[0].timings });
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'Internal server error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
