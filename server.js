@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
     res.json("Backend is running successfully!");
 });
 
- Get State Description
+// Get State Description
 app.post('/getStateDescription', async (req, res) => {
     const { city_name, state_name } = req.body;
     
