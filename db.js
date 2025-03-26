@@ -1,17 +1,20 @@
 const mysql = require('mysql2/promise');
+require('dotenv').config(); // Load environment variables
 
+// Create MySQL connection pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST,     // Make sure these environment variables are set in Vercel
     user: process.env.DB_USER,
+    host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    database: process.env.DB_DATABASE,
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
 });
 
-async function getDBConnection() {
-    return pool.getConnection();
-}
+// Function to get a database connection
+const getDBConnection = async () => {
+    return await pool.getConnection();
+};
 
-module.exports = { getDBConnection };
+module.exports = { getDBConnection, pool };
