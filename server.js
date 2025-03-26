@@ -20,10 +20,10 @@ const pool = mysql.createPool({
     queueLimit: 0, // Unlimited queue
 });
 
-//  Root route
 app.get('/', (req, res) => {
-res.json("From backend side running");
- });
+    res.json({ message: "Backend is running!" });
+});
+
 // //Api to fetch the Page Description as per the Selected state,
 // app.post('/getStateDescription', async (req, res) => {
 //     const { state_id } = req.body;
@@ -62,12 +62,13 @@ app.post('/getStoreTimings', async (req, res) => {
     const today = new Date().toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
     console.log(`Fetching store timings for StoreID: ${storeid}, Day: ${today}`);
 
-    const sql = `SELECT ${today} AS timings FROM timings WHERE StoreID = ?`;
+    const sql = `SELECT ?? AS timings FROM timings WHERE StoreID = ?`;
+
     let connection;
     try {
-        connection = await getDBConnection();
-        const [data] = await connection.query(sql, [storeid]);
-        
+        connection = await getDBConnection();  // ✅ FIXED
+        const [data] = await connection.query(sql, [today, storeid]);
+
         console.log('Database response:', data); // Log response
 
         if (data.length === 0 || !data[0].timings) {
@@ -78,7 +79,7 @@ app.post('/getStoreTimings', async (req, res) => {
         res.json({ storeid, today, timings: data[0].timings });
     } catch (err) {
         console.error('Database error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ message: 'Internal server error', error: err.message });
     } finally {
         if (connection) connection.release();
     }
