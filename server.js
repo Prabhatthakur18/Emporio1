@@ -19,10 +19,10 @@ const pool = mysql.createPool({
     queueLimit: 0, // Unlimited queue
 });
 
-// // Root route
-// app.get('/', (req, res) => {
-//     res.json("From backend side running");
-// });
+//  Root route
+app.get('/', (req, res) => {
+res.json("From backend side running");
+ });
 // //Api to fetch the Page Description as per the Selected state,
 // app.post('/getStateDescription', async (req, res) => {
 //     const { state_id } = req.body;
@@ -50,6 +50,32 @@ const pool = mysql.createPool({
 // });
 // // this api ends here.....
 
+
+//fetch the Stores Timings for data base
+
+//  Get Store Timings Based on Current Day
+app.post('/getStoreTimings', async (req, res) => {
+    const { storeid } = req.body;
+    if (!storeid) return res.status(400).json({ message: 'Store ID is required' });
+
+    // Get today's day name dynamically
+    const today = new Date().toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
+
+    const sql = `SELECT ${today} AS timings FROM timings WHERE StoreID = ?`;
+    let connection;
+    try {
+        connection = await getDBConnection();
+        const [data] = await connection.query(sql, [storeid]);
+        if (data.length === 0 || !data[0].timings) return res.status(404).json({ message: 'No timings found for this store today' });
+
+        res.json({ storeid, today, timings: data[0].timings });
+    } catch (err) {
+        console.error('Database error:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
 
 
 // Get all cities
