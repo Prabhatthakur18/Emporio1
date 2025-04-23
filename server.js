@@ -1,4 +1,4 @@
-const { getDBConnection } = require('./db');dddd
+const { getDBConnection } = require('./db');
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
