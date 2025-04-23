@@ -24,35 +24,7 @@ app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
 
-// //Api to fetch the Page Description as per the Selected state,
-// app.post('/getStateDescription', async (req, res) => {
-//     const { state_id } = req.body;
 
-//     if (!state_id) {
-//         return res.status(400).json({ message: 'State ID is required' });
-//     }
-
-//     const sql = "SELECT Description FROM states WHERE StateID = ?";
-//     let connection;
-//     try {
-//         connection = await pool.getConnection();
-//         const [data] = await connection.query(sql, [state_id]);
-
-//         if (data.length === 0) {
-//             return res.status(404).json({ message: 'State description not found' });
-//         }
-//         res.json({ description: data[0].Description });
-//     } catch (err) {
-//         console.error('Database error:', err);
-//         res.status(500).json({ message: 'Internal server error' });
-//     } finally {
-//         if (connection) connection.release();
-//     }
-// });
-// // this api ends here.....
-
-
-//fetch the Stores Timings for data base
 
 //  Get Store Timings Based on Current Day
 app.post('/getStoreTimings', async (req, res) => {
@@ -62,21 +34,26 @@ app.post('/getStoreTimings', async (req, res) => {
     const today = new Date().toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
     console.log(`Fetching store timings for StoreID: ${storeid}, Day: ${today}`);
 
-    const sql = `SELECT ?? AS timings FROM timings WHERE StoreID = ?`;
+    const sql = `SELECT ?? AS timings, Closed FROM timings WHERE StoreID = ?`;
 
     let connection;
     try {
-        connection = await getDBConnection();  // ✅ FIXED
+        connection = await getDBConnection();
         const [data] = await connection.query(sql, [today, storeid]);
 
-        console.log('Database response:', data); // Log response
+        console.log('Database response:', data);
 
         if (data.length === 0 || !data[0].timings) {
             console.log('No timings found for this store today.');
             return res.status(404).json({ message: 'No timings found for this store today' });
         }
 
-        res.json({ storeid, today, timings: data[0].timings });
+        res.json({
+            storeid,
+            today,
+            timings: data[0].timings,
+            closed: data[0].Closed
+        });
     } catch (err) {
         console.error('Database error:', err);
         res.status(500).json({ message: 'Internal server error', error: err.message });
