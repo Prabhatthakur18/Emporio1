@@ -52,7 +52,7 @@ app.post('/api/sendOTP', async (req, res) => {
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // expires in 5 mins
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // expires in 3 mins
 
     try {
         const connection = await pool.getConnection();
@@ -110,7 +110,7 @@ app.post('/api/verifyOTP', async (req, res) => {
 
 // Route: Submit rating
 app.post('/api/submitRating', async (req, res) => {
-    const { storeid, name, email, rating, review } = req.body;
+    const { StoreID, name, email, rating } = req.body;
 
     if (!storeid || !name || !email || !rating) {
         return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -118,7 +118,7 @@ app.post('/api/submitRating', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO ratings (storeid, name, email, rating, review) VALUES (?, ?, ?, ?, ?)', [storeid, name, email, rating, review || null]);
+        await connection.query('INSERT INTO ratings (StoreID, name, email, rating ) VALUES (?, ?, ?, ? )', [StoreID, name, email, rating || null]);
         connection.release();
 
         res.json({ success: true, message: 'Rating submitted successfully' });
