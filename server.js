@@ -8,16 +8,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MySQL pool
+// MySQL database connection pool
 const pool = mysql.createPool({
-    user: 'your_db_user',
-    host: 'your_db_host',
-    password: 'your_db_password',
-    database: 'your_db_name',
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 1000,
-    queueLimit: 0,
+    connectionLimit: 1000, // High limit (adjust as per server capacity)
+    queueLimit: 0, // Unlimited queue
 });
+
+app.get('/', (req, res) => {
+    res.json({ message: "Backend is running!" });
+});
+
+
 
 // Email credentials (replace with your real ones)
 const EMAIL_USER = 'your-email@gmail.com';
