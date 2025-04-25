@@ -111,15 +111,15 @@ app.post('/api/verifyOTP', async (req, res) => {
 // Route: Submit rating
 // Route: Submit rating
 app.post('/api/submitRating', async (req, res) => {
-    const {mobile, email, rating, submitted_at } = req.body;
+    const { storeid,name, mobile, email, rating, submitted_at } = req.body;
 
-    if (!mobile || !email || !rating || !submitted_at) {
+    if (!storeid || !name || !mobile || !email || !rating || !submitted_at) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO ratings (mobile, email, rating, submitted_at) VALUES (?, ?, ?, ?)', [mobile, email, rating, submitted_at || null]);
+        await connection.query('INSERT INTO ratings (StoreID, name, mobile, email, rating, submitted_at) VALUES (?, ?, ?, ?, ?, ?)', [storeid, name, mobile, email, rating, submitted_at]);
         connection.release();
 
         res.json({ message: 'Rating submitted successfully' });
