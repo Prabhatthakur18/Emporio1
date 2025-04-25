@@ -109,16 +109,17 @@ app.post('/api/verifyOTP', async (req, res) => {
 });
 
 // Route: Submit rating
+// Route: Submit rating
 app.post('/api/submitRating', async (req, res) => {
-    const { StoreId, name, mobile, email, rating, submitted_at } = req.body;
+    const {name, mobile, email, rating, submitted_at } = req.body;
 
-    if (!StoreId || !name || !mobile || !email || !rating || !submitted_at) {
+    if (!name || !mobile || !email || !rating || !submitted_at) {
         return res.status(400).json({ message: 'Missing required fields' });
     }
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO ratings (StoreID, name, mobile, email, rating, submitted_at) VALUES (?, ?, ?, ?, ?, ?)', [StoreId, name, mobile, email, rating, submitted_at || null]);
+        await connection.query('INSERT INTO ratings (name, mobile, email, rating, submitted_at) VALUES (?, ?, ?, ?, ?)', [name, mobile, email, rating, submitted_at || null]);
         connection.release();
 
         res.json({ message: 'Rating submitted successfully' });
@@ -127,7 +128,6 @@ app.post('/api/submitRating', async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
-
 // Route: Get store timings
 app.post('/getStoreTimings', async (req, res) => {
     const { storeid } = req.body;
