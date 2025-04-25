@@ -47,7 +47,7 @@ app.get('/', (req, res) => {
 });
 
 // Route: Send OTP
-app.post('/sendOTP', async (req, res) => {
+app.post('/api/sendOTP', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
@@ -83,7 +83,7 @@ app.post('/sendOTP', async (req, res) => {
 
 
 // Route: Verify OTP
-app.post('/verifyOTP', async (req, res) => {
+app.post('/api/verifyOTP', async (req, res) => {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
 
@@ -109,7 +109,7 @@ app.post('/verifyOTP', async (req, res) => {
 });
 
 // Route: Submit rating
-app.post('/submitRating', async (req, res) => {
+app.post('/api/submitRating', async (req, res) => {
     const { storeid, name, email, rating, review } = req.body;
 
     if (!storeid || !name || !email || !rating) {
