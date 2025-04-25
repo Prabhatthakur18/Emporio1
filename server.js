@@ -49,7 +49,7 @@ app.get('/', (req, res) => {
 // Route: Send OTP
 app.post('/sendOTP', async (req, res) => {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // expires in 5 mins
@@ -69,41 +69,42 @@ app.post('/sendOTP', async (req, res) => {
         transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
                 console.error('Error sending email:', error);
-                return res.status(500).json({ message: 'Failed to send OTP email' });
+                return res.status(500).json({ success: false, message: 'Failed to send OTP email' });
             }
             console.log('Email sent:', info.response);
-            res.json({ message: 'OTP sent to your email' });
+            res.json({ success: true, message: 'OTP sent to your email' });
         });
 
     } catch (err) {
         console.error('Error storing OTP:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
+
 
 // Route: Verify OTP
 app.post('/verifyOTP', async (req, res) => {
     const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
+    if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
 
     try {
         const connection = await pool.getConnection();
         const [rows] = await connection.query('SELECT * FROM otp_verification WHERE email = ? ORDER BY created_at DESC LIMIT 1', [email]);
         connection.release();
 
-        if (rows.length === 0) return res.status(400).json({ message: 'No OTP found' });
+        if (rows.length === 0) return res.status(400).json({ success: false, message: 'No OTP found' });
 
         const record = rows[0];
-        if (record.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
+        if (record.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
 
         if (new Date(record.expires_at) < new Date()) {
-            return res.status(400).json({ message: 'OTP expired' });
+            return res.status(400).json({ success: false, message: 'OTP expired' });
         }
 
-        res.json({ message: 'OTP verified successfully' });
+        res.json({ success: true, message: 'OTP verified successfully' });
     } catch (err) {
         console.error('OTP verification error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
@@ -112,7 +113,7 @@ app.post('/submitRating', async (req, res) => {
     const { storeid, name, email, rating, review } = req.body;
 
     if (!storeid || !name || !email || !rating) {
-        return res.status(400).json({ message: 'Missing required fields' });
+        return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     try {
@@ -120,12 +121,13 @@ app.post('/submitRating', async (req, res) => {
         await connection.query('INSERT INTO ratings (storeid, name, email, rating, review) VALUES (?, ?, ?, ?, ?)', [storeid, name, email, rating, review || null]);
         connection.release();
 
-        res.json({ message: 'Rating submitted successfully' });
+        res.json({ success: true, message: 'Rating submitted successfully' });
     } catch (err) {
         console.error('Submit rating error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
+
 
 // Route: Get store timings
 app.post('/getStoreTimings', async (req, res) => {
