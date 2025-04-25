@@ -26,8 +26,8 @@ app.get('/', (req, res) => {
 
 
 // Email credentials (replace with your real ones)
-const EMAIL_USER = 'ck.8107@gmail.com';
-const EMAIL_PASS = 'afzy hubz rxep xvga';
+const EMAIL_USER = 'marketing@autoformindia.com';
+const EMAIL_PASS = 'lpzx kisj eeow zpkb';
 
 // Email transporter
 const transporter = nodemailer.createTransport({
