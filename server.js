@@ -173,6 +173,75 @@ app.get('/autoform', async (req, res) => {
     }
 });
 
+// Get ratings for a specific store
+app.get('/getRatings/:StoreID', async (req, res) => {
+    const { StoreID } = req.params;
+    
+    try {
+        const connection = await pool.getConnection();
+        
+        // Get average rating
+        const [avgResult] = await connection.query(
+            'SELECT AVG(rating) as averageRating FROM ratings WHERE StoreID = ?',
+            [StoreID]
+        );
+        
+        // Get rating count
+        const [countResult] = await connection.query(
+            'SELECT COUNT(*) as ratingCount FROM ratings WHERE StoreID = ?',
+            [StoreID]
+        );
+        
+        connection.release();
+        
+        const averageRating = avgResult[0].averageRating || 0;
+        const ratingCount = countResult[0].ratingCount || 0;
+        
+        res.json({
+            averageRating: parseFloat(averageRating).toFixed(1),
+            ratingCount
+        });
+    } catch (err) {
+        console.error('Error fetching ratings:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Get all ratings for a store (optional - for detailed display)
+app.get('/getAllRatings/:StoreID', async (req, res) => {
+    const { StoreID } = req.params;
+    const { limit = 10, page = 1 } = req.query;
+    const offset = (page - 1) * limit;
+
+    try {
+        const connection = await pool.getConnection();
+        
+        // Get paginated ratings
+        const [ratings] = await connection.query(
+            'SELECT * FROM ratings WHERE StoreID = ? ORDER BY submitted_at DESC LIMIT ? OFFSET ?',
+            [StoreID, parseInt(limit), offset]
+        );
+        
+        // Get total count
+        const [countResult] = await connection.query(
+            'SELECT COUNT(*) as total FROM ratings WHERE StoreID = ?',
+            [StoreID]
+        );
+        
+        connection.release();
+        
+        res.json({
+            ratings,
+            total: countResult[0].total,
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
+    } catch (err) {
+        console.error('Error fetching all ratings:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // Route: Get all states
 app.get('/getallstate', async (req, res) => {
     try {
