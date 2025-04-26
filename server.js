@@ -23,6 +23,8 @@ app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
 
+
+
 // Email credentials (replace with your real ones)
 const EMAIL_USER = 'ck.8107@gmail.com';
 const EMAIL_PASS = 'afzy hubz rxep xvga';
@@ -46,17 +48,15 @@ app.get('/', (req, res) => {
 
 // Route: Send OTP
 app.post('/api/sendOTP', async (req, res) => {
-    const { email, mobile } = req.body;
+    const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // expires in 3 mins
-    const is_verified = false;
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO otp_verification (email, mobile, otp, expires_at, is_varified) VALUES (?, ?, ?, ?, ?)', 
-            [email, mobile || null, otp, expiresAt, is_verified]);
+        await connection.query('INSERT INTO otp_verification (email,mobile, otp, expires_at, is_varified) VALUES (?, ?, ?, ?, ?)', [email, mobile, otp, expiresAt, is_verified]);
         connection.release();
 
         const mailOptions = {
@@ -197,7 +197,6 @@ app.get('/getAllRatings/:StoreID', async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
-
 // Route: Get store timings
 app.post('/getStoreTimings', async (req, res) => {
     const { storeid } = req.body;
@@ -300,7 +299,7 @@ app.post('/getStorebyname', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        const [data] = await connection.query("SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE CityName = ?)", [cityname]);
+        const [data] = await connection.query("SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE cityname = ?)", [cityname]);
         connection.release();
 
         if (data.length === 0) {
@@ -313,23 +312,18 @@ app.post('/getStorebyname', async (req, res) => {
     }
 });
 
-// FIXED: Route: Get stores by state ID
+// Route: Get stores by state name
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
 
     try {
         const connection = await pool.getConnection();
-        // Changed query to use StateID directly
-        const [data] = await connection.query(
-            "SELECT * FROM autoform WHERE StateID = ?", 
-            [stateid]
-        );
+        const [data] = await connection.query("SELECT * FROM autoform WHERE stateid = (SELECT stateid FROM states WHERE statename = ?)", [stateid]);
         connection.release();
 
-        // Return empty array instead of 404 for no results
         if (data.length === 0) {
-            return res.json([]);
+            return res.status(404).json({ message: 'No stores found for the given state name' });
         }
         res.json(data);
     } catch (err) {
