@@ -314,30 +314,45 @@ app.post('/getStorebyname', async (req, res) => {
 });
 
 // FIXED: Route: Get stores by state ID
+// Route: Get stores by state ID - FIXED VERSION
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
 
     try {
         const connection = await pool.getConnection();
-        // Changed query to use StateID directly
+        
+        // Option 1: Get stores directly by StateID
         const [data] = await connection.query(
             "SELECT * FROM autoform WHERE StateID = ?", 
             [stateid]
         );
-        connection.release();
-
-        // Return empty array instead of 404 for no results
+        
+        // Option 2: If no results, try getting via cities in that state
         if (data.length === 0) {
-            return res.json([]);
+            const [cities] = await connection.query(
+                "SELECT CityID FROM cities WHERE StateID = ?",
+                [stateid]
+            );
+            
+            if (cities.length > 0) {
+                const cityIds = cities.map(c => c.CityID);
+                const [storeData] = await connection.query(
+                    "SELECT * FROM autoform WHERE CityID IN (?)",
+                    [cityIds]
+                );
+                connection.release();
+                return res.json(storeData);
+            }
         }
+        
+        connection.release();
         res.json(data);
     } catch (err) {
         console.error('Fetch store by state error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
-
 // Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
