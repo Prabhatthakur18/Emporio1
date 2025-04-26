@@ -9,16 +9,18 @@ app.use(cors());
 app.use(express.json());
 
 // MySQL database connection pool
+// Modify your MySQL pool configuration
 const pool = mysql.createPool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 1000, // High limit (adjust as per server capacity)
-    queueLimit: 0, // Unlimited queue
+    connectionLimit: 15, // Reduced from 1000 to a safer number
+    queueLimit: 100, // Limited queue to prevent overload
+    idleTimeout: 60000, // Close idle connections after 60 seconds
+    enableKeepAlive: true // Maintain connection health
 });
-
 app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
@@ -242,14 +244,16 @@ app.get('/autoform', async (req, res) => {
 
 // Route: Get all states
 app.get('/getallstate', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         const [data] = await connection.query("SELECT * FROM states");
-        connection.release();
         res.json(data);
     } catch (err) {
         console.error('States fetch error:', err);
-        res.status(500).json({ message: 'Database error', error: err });
+        res.status(500).json({ message: 'Database error' });
+    } finally {
+        if (connection) connection.release(); // Always release connection
     }
 });
 
