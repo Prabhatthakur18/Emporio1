@@ -9,18 +9,16 @@ app.use(cors());
 app.use(express.json());
 
 // MySQL database connection pool
-// Modify your MySQL pool configuration
 const pool = mysql.createPool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 15, // Reduced from 1000 to a safer number
-    queueLimit: 100, // Limited queue to prevent overload
-    idleTimeout: 60000, // Close idle connections after 60 seconds
-    enableKeepAlive: true // Maintain connection health
+    connectionLimit: 1000, // High limit (adjust as per server capacity)
+    queueLimit: 0, // Unlimited queue
 });
+
 app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
@@ -244,16 +242,14 @@ app.get('/autoform', async (req, res) => {
 
 // Route: Get all states
 app.get('/getallstate', async (req, res) => {
-    let connection;
     try {
-        connection = await pool.getConnection();
+        const connection = await pool.getConnection();
         const [data] = await connection.query("SELECT * FROM states");
+        connection.release();
         res.json(data);
     } catch (err) {
         console.error('States fetch error:', err);
-        res.status(500).json({ message: 'Database error' });
-    } finally {
-        if (connection) connection.release(); // Always release connection
+        res.status(500).json({ message: 'Database error', error: err });
     }
 });
 
@@ -318,45 +314,30 @@ app.post('/getStorebyname', async (req, res) => {
 });
 
 // FIXED: Route: Get stores by state ID
-// Route: Get stores by state ID - FIXED VERSION
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
 
     try {
         const connection = await pool.getConnection();
-        
-        // Option 1: Get stores directly by StateID
+        // Changed query to use StateID directly
         const [data] = await connection.query(
             "SELECT * FROM autoform WHERE StateID = ?", 
             [stateid]
         );
-        
-        // Option 2: If no results, try getting via cities in that state
-        if (data.length === 0) {
-            const [cities] = await connection.query(
-                "SELECT CityID FROM cities WHERE StateID = ?",
-                [stateid]
-            );
-            
-            if (cities.length > 0) {
-                const cityIds = cities.map(c => c.CityID);
-                const [storeData] = await connection.query(
-                    "SELECT * FROM autoform WHERE CityID IN (?)",
-                    [cityIds]
-                );
-                connection.release();
-                return res.json(storeData);
-            }
-        }
-        
         connection.release();
+
+        // Return empty array instead of 404 for no results
+        if (data.length === 0) {
+            return res.json([]);
+        }
         res.json(data);
     } catch (err) {
         console.error('Fetch store by state error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
+
 // Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
