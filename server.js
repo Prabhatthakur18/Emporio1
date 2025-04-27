@@ -9,21 +9,21 @@ app.use(cors());
 app.use(express.json());
 
 // MySQL database connection pool
+// Modify your MySQL pool configuration
 const pool = mysql.createPool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 1000, // High limit (adjust as per server capacity)
-    queueLimit: 0, // Unlimited queue
+    connectionLimit: 15, // Reduced from 1000 to a safer number
+    queueLimit: 100, // Limited queue to prevent overload
+    idleTimeout: 60000, // Close idle connections after 60 seconds
+    enableKeepAlive: true // Maintain connection health
 });
-
 app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
-
-
 
 // Email credentials (replace with your real ones)
 const EMAIL_USER = 'ck.8107@gmail.com';
@@ -48,15 +48,17 @@ app.get('/', (req, res) => {
 
 // Route: Send OTP
 app.post('/api/sendOTP', async (req, res) => {
-    const { email } = req.body;
+    const { email, mobile } = req.body;
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // expires in 3 mins
+    const is_verified = false;
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO otp_verification (email,mobile, otp, expires_at, is_varified) VALUES (?, ?, ?, ?, ?)', [email, mobile, otp, expiresAt, is_verified]);
+        await connection.query('INSERT INTO otp_verification (email, mobile, otp, expires_at, is_varified) VALUES (?, ?, ?, ?, ?)', 
+            [email, mobile || null, otp, expiresAt, is_verified]);
         connection.release();
 
         const mailOptions = {
@@ -128,6 +130,76 @@ app.post('/api/submitRating', async (req, res) => {
       res.status(500).json({ message: 'Internal server error' });
     }
 });
+
+// Get ratings for a specific store
+app.get('/getRatings/:StoreID', async (req, res) => {
+    const { StoreID } = req.params;
+    
+    try {
+        const connection = await pool.getConnection();
+        
+        // Get average rating
+        const [avgResult] = await connection.query(
+            'SELECT AVG(rating) as averageRating FROM ratings WHERE StoreID = ?',
+            [StoreID]
+        );
+        
+        // Get rating count
+        const [countResult] = await connection.query(
+            'SELECT COUNT(*) as ratingCount FROM ratings WHERE StoreID = ?',
+            [StoreID]
+        );
+        
+        connection.release();
+        
+        const averageRating = avgResult[0].averageRating || 0;
+        const ratingCount = countResult[0].ratingCount || 0;
+        
+        res.json({
+            averageRating: parseFloat(averageRating).toFixed(1),
+            ratingCount
+        });
+    } catch (err) {
+        console.error('Error fetching ratings:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+// Get all ratings for a store (optional - for detailed display)
+app.get('/getAllRatings/:StoreID', async (req, res) => {
+    const { StoreID } = req.params;
+    const { limit = 10, page = 1 } = req.query;
+    const offset = (page - 1) * limit;
+
+    try {
+        const connection = await pool.getConnection();
+        
+        // Get paginated ratings
+        const [ratings] = await connection.query(
+            'SELECT * FROM ratings WHERE StoreID = ? ORDER BY submitted_at DESC LIMIT ? OFFSET ?',
+            [StoreID, parseInt(limit), offset]
+        );
+        
+        // Get total count
+        const [countResult] = await connection.query(
+            'SELECT COUNT(*) as total FROM ratings WHERE StoreID = ?',
+            [StoreID]
+        );
+        
+        connection.release();
+        
+        res.json({
+            ratings,
+            total: countResult[0].total,
+            page: parseInt(page),
+            limit: parseInt(limit)
+        });
+    } catch (err) {
+        console.error('Error fetching all ratings:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 // Route: Get store timings
 app.post('/getStoreTimings', async (req, res) => {
     const { storeid } = req.body;
@@ -172,14 +244,16 @@ app.get('/autoform', async (req, res) => {
 
 // Route: Get all states
 app.get('/getallstate', async (req, res) => {
+    let connection;
     try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         const [data] = await connection.query("SELECT * FROM states");
-        connection.release();
         res.json(data);
     } catch (err) {
         console.error('States fetch error:', err);
-        res.status(500).json({ message: 'Database error', error: err });
+        res.status(500).json({ message: 'Database error' });
+    } finally {
+        if (connection) connection.release(); // Always release connection
     }
 });
 
@@ -230,7 +304,7 @@ app.post('/getStorebyname', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        const [data] = await connection.query("SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE cityname = ?)", [cityname]);
+        const [data] = await connection.query("SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE CityName = ?)", [cityname]);
         connection.release();
 
         if (data.length === 0) {
@@ -243,26 +317,46 @@ app.post('/getStorebyname', async (req, res) => {
     }
 });
 
-// Route: Get stores by state name
+// FIXED: Route: Get stores by state ID
+// Route: Get stores by state ID - FIXED VERSION
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
 
     try {
         const connection = await pool.getConnection();
-        const [data] = await connection.query("SELECT * FROM autoform WHERE stateid = (SELECT stateid FROM states WHERE statename = ?)", [stateid]);
-        connection.release();
-
+        
+        // Option 1: Get stores directly by StateID
+        const [data] = await connection.query(
+            "SELECT * FROM autoform WHERE StateID = ?", 
+            [stateid]
+        );
+        
+        // Option 2: If no results, try getting via cities in that state
         if (data.length === 0) {
-            return res.status(404).json({ message: 'No stores found for the given state name' });
+            const [cities] = await connection.query(
+                "SELECT CityID FROM cities WHERE StateID = ?",
+                [stateid]
+            );
+            
+            if (cities.length > 0) {
+                const cityIds = cities.map(c => c.CityID);
+                const [storeData] = await connection.query(
+                    "SELECT * FROM autoform WHERE CityID IN (?)",
+                    [cityIds]
+                );
+                connection.release();
+                return res.json(storeData);
+            }
         }
+        
+        connection.release();
         res.json(data);
     } catch (err) {
         console.error('Fetch store by state error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
-
 // Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
