@@ -15,7 +15,7 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 1000, // High limit (adjust as per server capacity)
+    connectionLimit: 100, // High limit (adjust as per server capacity)
     queueLimit: 0, // Unlimited queue
 });
 
@@ -52,32 +52,28 @@ app.post('/api/sendOTP', async (req, res) => {
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // expires in 3 mins
-
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+    
+    let connection;
     try {
-        const connection = await pool.getConnection();
-        await connection.query('INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)', [email, otp, expiresAt]);
-        connection.release();
-
+        connection = await pool.getConnection();
+        await connection.query('INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)', 
+            [email, otp, expiresAt]);
+        
         const mailOptions = {
             from: EMAIL_USER,
             to: email,
             subject: 'Your OTP for Rating Submission',
-            text: `Your OTP is: ${otp}. It will expire in 5 minutes.`
+            text: `Your OTP is: ${otp}. It will expire in 3 minutes.`
         };
 
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error('Error sending email:', error);
-                return res.status(500).json({ success: false, message: 'Failed to send OTP email' });
-            }
-            console.log('Email sent:', info.response);
-            res.json({ success: true, message: 'OTP sent to your email' });
-        });
-
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true, message: 'OTP sent to your email' });
     } catch (err) {
-        console.error('Error storing OTP:', err);
+        console.error('Error:', err);
         res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
