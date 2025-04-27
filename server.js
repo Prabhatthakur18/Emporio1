@@ -15,7 +15,7 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 100, // High limit (adjust as per server capacity)
+    connectionLimit: 1000, // High limit (adjust as per server capacity)
     queueLimit: 0, // Unlimited queue
 });
 
@@ -64,7 +64,7 @@ app.post('/api/sendOTP', async (req, res) => {
             from: EMAIL_USER,
             to: email,
             subject: 'Your OTP for Rating Submission',
-            text: `Your OTP is: ${otp}. It will expire in 3 minutes.`
+            text: `Your OTP is: ${otp}. It will expire in 5 minutes.`
         };
 
         await transporter.sendMail(mailOptions);
