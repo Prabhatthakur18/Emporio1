@@ -44,9 +44,8 @@ app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
 
-// Route: Send OTP
 app.post('/api/sendOTP', async (req, res) => {
-    const { email, mobile } = req.body;
+    const { email} = req.body;
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const otp = generateOTP();
@@ -55,15 +54,15 @@ app.post('/api/sendOTP', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO otp_verification (email, mobile, otp, expires_at, is_varified) VALUES (?, ?, ?, ?, ?)', 
-            [email, mobile || null, otp, expiresAt, is_verified]);
+        await connection.query('INSERT INTO otp_verification (email, otp, expires_at, is_varified) VALUES (?, ?, ?, ?)', 
+            [email || null, otp, expiresAt, is_verified]);
         connection.release();
 
         const mailOptions = {
             from: EMAIL_USER,
             to: email,
             subject: 'Your OTP for Rating Submission',
-            text: `Your OTP is: ${otp}. It will expire in 5 minutes.`
+            text: `Your OTP is: ${otp}. It will expire in 3 minutes.`
         };
 
         transporter.sendMail(mailOptions, (error, info) => {
@@ -77,32 +76,6 @@ app.post('/api/sendOTP', async (req, res) => {
 
     } catch (err) {
         console.error('Error storing OTP:', err);
-        res.status(500).json({ message: 'Internal server error' });
-    }
-});
-
-// Route: Verify OTP
-app.post('/api/verifyOTP', async (req, res) => {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
-
-    try {
-        const connection = await pool.getConnection();
-        const [rows] = await connection.query('SELECT * FROM otp_verification WHERE email = ? ORDER BY created_at DESC LIMIT 1', [email]);
-        connection.release();
-
-        if (rows.length === 0) return res.status(400).json({ message: 'No OTP found' });
-
-        const record = rows[0];
-        if (record.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
-
-        if (new Date(record.expires_at) < new Date()) {
-            return res.status(400).json({ message: 'OTP expired' });
-        }
-
-        res.json({ message: 'OTP verified successfully' });
-    } catch (err) {
-        console.error('OTP verification error:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
