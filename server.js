@@ -19,13 +19,14 @@ const pool = mysql.createPool({
     queueLimit: 0, // Unlimited queue
 });
 
+// Route: Health check
 app.get('/', (req, res) => {
     res.json({ message: "Backend is running!" });
 });
 
-// Email credentials (replace with your real ones)
+// Email configuration - using environment variables for security
 const EMAIL_USER = 'ck.8107@gmail.com';
-const EMAIL_PASS = 'afzy hubz rxep xvga';
+const EMAIL_PASS = 'your-app-password';
 
 // Email transporter
 const transporter = nodemailer.createTransport({
@@ -39,13 +40,9 @@ const transporter = nodemailer.createTransport({
 // Helper: Generate OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
-// Route: Health check
-app.get('/', (req, res) => {
-    res.json({ message: "Backend is running!" });
-});
-
+// Route: Send OTP
 app.post('/api/sendOTP', async (req, res) => {
-    const { email} = req.body;
+    const { email, mobile } = req.body;
     if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const otp = generateOTP();
@@ -54,8 +51,8 @@ app.post('/api/sendOTP', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO otp_verification (email, otp, expires_at, is_verified) VALUES (?, ?, ?, ?)', 
-            [email || null, otp, expiresAt, is_verified]);
+        await connection.query('INSERT INTO otp_verification (email, mobile, otp, expires_at, is_verified) VALUES (?, ?, ?, ?, ?)', 
+            [email, mobile || null, otp, expiresAt, is_verified]);
         connection.release();
 
         const mailOptions = {
@@ -80,18 +77,47 @@ app.post('/api/sendOTP', async (req, res) => {
     }
 });
 
+// Route: Verify OTP
+app.post('/api/verifyOTP', async (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
+
+    try {
+        const connection = await pool.getConnection();
+        const [rows] = await connection.query('SELECT * FROM otp_verification WHERE email = ? ORDER BY created_at DESC LIMIT 1', [email]);
+        connection.release();
+
+        if (rows.length === 0) return res.status(400).json({ message: 'No OTP found' });
+
+        const record = rows[0];
+        if (record.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
+
+        if (new Date(record.expires_at) < new Date()) {
+            return res.status(400).json({ message: 'OTP expired' });
+        }
+
+        // Update the OTP verification status
+        await connection.query('UPDATE otp_verification SET is_verified = ? WHERE id = ?', [true, record.id]);
+
+        res.json({ message: 'OTP verified successfully' });
+    } catch (err) {
+        console.error('OTP verification error:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
 app.post('/api/submitRating', async (req, res) => {
     const { StoreID, mobile, email, rating, submitted_at, name } = req.body;
   
-    if (!mobile || !email || !rating || !submitted_at) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!StoreID || !email || !rating) {
+      return res.status(400).json({ message: 'Missing required fields (StoreID, email, rating)' });
     }
   
     try {
       const connection = await pool.getConnection();
       await connection.query(
         'INSERT INTO ratings (StoreID, mobile, email, rating, submitted_at, name) VALUES (?, ?, ?, ?, ?, ?)',
-        [StoreID, mobile, email, rating, submitted_at || null, name || null]
+        [StoreID, mobile || null, email, rating, submitted_at || new Date(), name || null]
       );
       connection.release();
   
@@ -105,6 +131,10 @@ app.post('/api/submitRating', async (req, res) => {
 // Get ratings for a specific store
 app.get('/getRatings/:StoreID', async (req, res) => {
     const { StoreID } = req.params;
+    
+    if (!StoreID) {
+        return res.status(400).json({ message: 'Store ID is required' });
+    }
     
     try {
         const connection = await pool.getConnection();
@@ -141,6 +171,10 @@ app.get('/getAllRatings/:StoreID', async (req, res) => {
     const { StoreID } = req.params;
     const { limit = 10, page = 1 } = req.query;
     const offset = (page - 1) * limit;
+
+    if (!StoreID) {
+        return res.status(400).json({ message: 'Store ID is required' });
+    }
 
     try {
         const connection = await pool.getConnection();
@@ -183,14 +217,16 @@ app.post('/getStoreTimings', async (req, res) => {
     try {
         connection = await pool.getConnection();
         const [data] = await connection.query(sql, [today, storeid]);
-        if (data.length === 0 || !data[0].timings) {
+        if (data.length === 0) {
             return res.status(404).json({ message: 'No timings found for this store today' });
         }
+        
+        // Standardize the response format
         res.json({
             storeid,
             today,
-            timings: data[0].timings,
-            closed: data[0].Closed
+            timings: data[0].timings || "Timings not available",
+            closed: data[0].Closed === 1 // Convert to boolean for consistency
         });
     } catch (err) {
         console.error('Database error:', err);
@@ -209,7 +245,7 @@ app.get('/autoform', async (req, res) => {
         res.json(data);
     } catch (err) {
         console.error('Cities fetch error:', err);
-        res.status(500).json({ message: 'Database error', error: err });
+        res.status(500).json({ message: 'Database error', error: err.message });
     }
 });
 
@@ -222,7 +258,7 @@ app.get('/getallstate', async (req, res) => {
         res.json(data);
     } catch (err) {
         console.error('States fetch error:', err);
-        res.status(500).json({ message: 'Database error', error: err });
+        res.status(500).json({ message: 'Database error', error: err.message });
     }
 });
 
@@ -236,9 +272,7 @@ app.post('/getCitiesByState', async (req, res) => {
         const [data] = await connection.query("SELECT * FROM cities WHERE StateID = ?", [state_id]);
         connection.release();
 
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No cities found for the given state ID' });
-        }
+        // Return empty array instead of 404 for no results
         res.json(data);
     } catch (err) {
         console.error('Fetch cities by state error:', err);
@@ -256,9 +290,7 @@ app.post('/getStore', async (req, res) => {
         const [data] = await connection.query("SELECT * FROM autoform WHERE CityID = ?", [cityid]);
         connection.release();
 
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No stores found for the given city ID' });
-        }
+        // Return empty array instead of 404 for no results
         res.json(data);
     } catch (err) {
         console.error('Fetch store error:', err);
@@ -273,12 +305,13 @@ app.post('/getStorebyname', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        const [data] = await connection.query("SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE CityName = ?)", [cityname]);
+        const [data] = await connection.query(
+            "SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE CityName = ?)", 
+            [cityname]
+        );
         connection.release();
 
-        if (data.length === 0) {
-            return res.status(404).json({ message: 'No stores found for the given city name' });
-        }
+        // Return empty array instead of 404 for no results
         res.json(data);
     } catch (err) {
         console.error('Fetch store by name error:', err);
@@ -286,14 +319,14 @@ app.post('/getStorebyname', async (req, res) => {
     }
 });
 
-// FIXED: Route: Get stores by state ID
+// Route: Get stores by state ID
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
 
     try {
         const connection = await pool.getConnection();
-        // Changed query to use StateID directly
+        // Use StateID directly
         const [data] = await connection.query(
             "SELECT * FROM autoform WHERE StateID = ?", 
             [stateid]
@@ -301,9 +334,6 @@ app.post('/getStorebyState', async (req, res) => {
         connection.release();
 
         // Return empty array instead of 404 for no results
-        if (data.length === 0) {
-            return res.json([]);
-        }
         res.json(data);
     } catch (err) {
         console.error('Fetch store by state error:', err);
