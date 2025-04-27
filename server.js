@@ -54,7 +54,7 @@ app.post('/api/sendOTP', async (req, res) => {
 
     try {
         const connection = await pool.getConnection();
-        await connection.query('INSERT INTO otp_verification (email, otp, expires_at, is_varified) VALUES (?, ?, ?, ?)', 
+        await connection.query('INSERT INTO otp_verification (email, otp, expires_at, is_verified) VALUES (?, ?, ?, ?)', 
             [email || null, otp, expiresAt, is_verified]);
         connection.release();
 
