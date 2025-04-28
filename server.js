@@ -15,7 +15,7 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 25, // Reduced from 1000 to stay under the 30 connection limit
+    connectionLimit: 35, // Reduced from 1000 to stay under the 30 connection limit
     queueLimit: 100,     // Added reasonable queue limit
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000, // 10 seconds
