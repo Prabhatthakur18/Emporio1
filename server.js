@@ -295,7 +295,7 @@ app.post('/getCitiesByState', async (req, res) => {
     try {
         const data = await withConnection(async (connection) => {
             const [rows] = await connection.query(
-                "SELECT * FROM cities WHERE StateID = ?", 
+                "SELECT * FROM cities WHERE StateID = ? ORDER BY CityName ASC", 
                 [state_id]
             );
             return rows;
@@ -312,7 +312,7 @@ app.post('/getCitiesByState', async (req, res) => {
     }
 });
 
-// Route: Get stores by city ID
+// Route: Get stores by city ID - UPDATED WITH ALPHABETICAL SORTING
 app.post('/getStore', async (req, res) => {
     const { cityid } = req.body;
     if (!cityid) return res.status(400).json({ message: 'City ID is required' });
@@ -320,7 +320,7 @@ app.post('/getStore', async (req, res) => {
     try {
         const data = await withConnection(async (connection) => {
             const [rows] = await connection.query(
-                "SELECT * FROM autoform WHERE CityID = ?", 
+                "SELECT * FROM autoform WHERE CityID = ? ORDER BY StoreName ASC", 
                 [cityid]
             );
             return rows;
@@ -337,7 +337,7 @@ app.post('/getStore', async (req, res) => {
     }
 });
 
-// Route: Get stores by city name
+// Route: Get stores by city name - UPDATED WITH ALPHABETICAL SORTING
 app.post('/getStorebyname', async (req, res) => {
     const { cityname } = req.body;
     if (!cityname) return res.status(400).json({ message: 'City name is required' });
@@ -345,7 +345,7 @@ app.post('/getStorebyname', async (req, res) => {
     try {
         const data = await withConnection(async (connection) => {
             const [rows] = await connection.query(
-                "SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE cityname = ?)", 
+                "SELECT * FROM autoform WHERE CityID = (SELECT CityID FROM cities WHERE cityname = ?) ORDER BY StoreName ASC", 
                 [cityname]
             );
             return rows;
@@ -362,7 +362,7 @@ app.post('/getStorebyname', async (req, res) => {
     }
 });
 
-// Route: Get stores by state name
+// Route: Get stores by state name - UPDATED WITH ALPHABETICAL SORTING
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
@@ -370,7 +370,7 @@ app.post('/getStorebyState', async (req, res) => {
     try {
         const data = await withConnection(async (connection) => {
             const [rows] = await connection.query(
-                "SELECT * FROM autoform WHERE stateid = (SELECT stateid FROM states WHERE statename = ?)", 
+                "SELECT * FROM autoform WHERE stateid = (SELECT stateid FROM states WHERE statename = ?) ORDER BY StoreName ASC", 
                 [stateid]
             );
             return rows;
