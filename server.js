@@ -99,7 +99,7 @@ app.post('/api/sendOTP', async (req, res) => {
         res.json({ success: true, message: 'OTP sent to your email' });
     } catch (err) {
         console.error('Error sending OTP:', err);
-        res.status(500).json({ success: false, message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'User Already Exists, Kinly Add Another Email' });
     }
 });
 
