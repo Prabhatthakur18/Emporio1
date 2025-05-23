@@ -80,14 +80,32 @@ app.post('/api/sendOTP', async (req, res) => {
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
-    
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
+
+    let connection;
     try {
-        await withConnection(async (connection) => {
-            await connection.query('INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)', 
-                [email, otp, expiresAt]);
-        });
-        
+        connection = await pool.getConnection();
+
+        // ✅ Check if email already rated
+        const [existing] = await connection.query(
+            'SELECT id FROM ratings WHERE email = ? LIMIT 1',
+            [email]
+        );
+
+        if (existing.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'User already exists. Kindly use another email.'
+            });
+        }
+
+        // ✅ Insert OTP
+        await connection.query(
+            'INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)',
+            [email, otp, expiresAt]
+        );
+
+        // ✅ Send email
         const mailOptions = {
             from: EMAIL_USER,
             to: email,
@@ -96,10 +114,14 @@ app.post('/api/sendOTP', async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
+
         res.json({ success: true, message: 'OTP sent to your email' });
+
     } catch (err) {
-        console.error('Error sending OTP:', err);
+        console.error('Error:', err);
         res.status(500).json({ success: false, message: 'Internal server error' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
