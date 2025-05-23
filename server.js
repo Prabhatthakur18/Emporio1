@@ -4,8 +4,23 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const app = express();
+const allowedOrigins = [
+  'https://emporiobyautoform.com',
+  'http://localhost:3000', // for local dev/testing
+];
 
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback){
+    // allow requests with no origin (like curl or postman)
+    if(!origin) return callback(null, true);
+    if(allowedOrigins.indexOf(origin) === -1){
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true, // if you want to allow cookies or auth headers
+}));
 app.use(express.json());
 
 // MySQL database connection pool with optimized settings
