@@ -4,23 +4,8 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const app = express();
-const allowedOrigins = [
-  'https://emporiobyautoform.com',
-  'http://localhost:3000', // for local dev/testing
-];
 
-app.use(cors({
-  origin: function(origin, callback){
-    // allow requests with no origin (like curl or postman)
-    if(!origin) return callback(null, true);
-    if(allowedOrigins.indexOf(origin) === -1){
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true, // if you want to allow cookies or auth headers
-}));
+app.use(cors());
 app.use(express.json());
 
 // MySQL database connection pool with optimized settings
@@ -95,32 +80,14 @@ app.post('/api/sendOTP', async (req, res) => {
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
-
-    let connection;
+    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+    
     try {
-        connection = await pool.getConnection();
-
-        // ✅ Check if email already rated
-        const [existing] = await connection.query(
-            'SELECT id FROM ratings WHERE email = ? LIMIT 1',
-            [email]
-        );
-
-        if (existing.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'User already exists. Kindly use another email.'
-            });
-        }
-
-        // ✅ Insert OTP
-        await connection.query(
-            'INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)',
-            [email, otp, expiresAt]
-        );
-
-        // ✅ Send email
+        await withConnection(async (connection) => {
+            await connection.query('INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)', 
+                [email, otp, expiresAt]);
+        });
+        
         const mailOptions = {
             from: EMAIL_USER,
             to: email,
@@ -129,14 +96,10 @@ app.post('/api/sendOTP', async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-
         res.json({ success: true, message: 'OTP sent to your email' });
-
     } catch (err) {
-        console.error('Error:', err);
+        console.error('Error sending OTP:', err);
         res.status(500).json({ success: false, message: 'Internal server error' });
-    } finally {
-        if (connection) connection.release();
     }
 });
 
