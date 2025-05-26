@@ -15,10 +15,10 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     waitForConnections: true,
-    connectionLimit: 35, // Reduced from 1000 to stay under the 30 connection limit
-    queueLimit: 100,     // Added reasonable queue limit
+    connectionLimit: 35,
+    queueLimit: 100,
     enableKeepAlive: true,
-    keepAliveInitialDelay: 10000, // 10 seconds
+    keepAliveInitialDelay: 10000,
 });
 
 // Helper function to manage database connections
@@ -37,7 +37,7 @@ const EMAIL_USER = 'marketing@autoformindia.com';
 const EMAIL_PASS = 'lpzx kisj eeow zpkb';
 
 // Email transporter
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
     service: 'gmail',
     auth: {
         user: EMAIL_USER,
@@ -74,18 +74,26 @@ app.get('/dbstatus', async (req, res) => {
     }
 });
 
-// Route: Send OTP
+// Route: Send OTP - FIXED VERSION
 app.post('/api/sendOTP', async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
     
     try {
         await withConnection(async (connection) => {
-            await connection.query('INSERT INTO otp_verification (email, otp, expires_at) VALUES (?, ?, ?)', 
-                [email, otp, expiresAt]);
+            // Use INSERT ... ON DUPLICATE KEY UPDATE to handle existing emails
+            // This will either insert new record or update existing one
+            await connection.query(`
+                INSERT INTO otp_verification (email, otp, expires_at, created_at) 
+                VALUES (?, ?, ?, NOW()) 
+                ON DUPLICATE KEY UPDATE 
+                otp = VALUES(otp), 
+                expires_at = VALUES(expires_at), 
+                created_at = NOW()
+            `, [email, otp, expiresAt]);
         });
         
         const mailOptions = {
@@ -99,11 +107,11 @@ app.post('/api/sendOTP', async (req, res) => {
         res.json({ success: true, message: 'OTP sent to your email' });
     } catch (err) {
         console.error('Error sending OTP:', err);
-        res.status(500).json({ success: false, message: 'User Already Exists, Kinly Add Another Email' });
+        res.status(500).json({ success: false, message: 'Failed to send OTP. Please try again.' });
     }
 });
 
-// Route: Verify OTP
+// Route: Verify OTP - ENHANCED VERSION
 app.post('/api/verifyOTP', async (req, res) => {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
@@ -117,11 +125,19 @@ app.post('/api/verifyOTP', async (req, res) => {
             return rows[0];
         });
 
-        if (!record) return res.status(400).json({ success: false, message: 'No OTP found' });
-        if (record.otp !== otp) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+        if (!record) return res.status(400).json({ success: false, message: 'No OTP found for this email' });
+        if (record.otp.toString() !== otp.toString()) return res.status(400).json({ success: false, message: 'Invalid OTP' });
         if (new Date(record.expires_at) < new Date()) {
-            return res.status(400).json({ success: false, message: 'OTP expired' });
+            return res.status(400).json({ success: false, message: 'OTP expired. Please request a new one.' });
         }
+
+        // Optional: Mark OTP as used to prevent reuse
+        await withConnection(async (connection) => {
+            await connection.query(
+                'UPDATE otp_verification SET used = 1 WHERE email = ? AND otp = ?',
+                [email, otp]
+            );
+        });
 
         res.json({ success: true, message: 'OTP verified successfully' });
     } catch (err) {
@@ -130,26 +146,59 @@ app.post('/api/verifyOTP', async (req, res) => {
     }
 });
 
-// Route: Submit rating
+// Route: Submit rating - FIXED VERSION
 app.post('/api/submitRating', async (req, res) => {
     const { StoreID, mobile, email, rating, submitted_at, name } = req.body;
   
-    if (!mobile || !email || !rating || !submitted_at) {
-        return res.status(400).json({ message: 'Missing required fields' });
+    if (!email || !rating) {
+        return res.status(400).json({ success: false, message: 'Email and rating are required' });
     }
   
     try {
-        await withConnection(async (connection) => {
-            await connection.query(
-                'INSERT INTO ratings (StoreID, mobile, email, rating, submitted_at, name) VALUES (?, ?, ?, ?, ?, ?)',
-                [StoreID, mobile, email, rating, submitted_at || null, name || null]
+        // First, verify that the OTP was validated for this email
+        const otpVerified = await withConnection(async (connection) => {
+            const [rows] = await connection.query(
+                'SELECT * FROM otp_verification WHERE email = ? AND used = 1 ORDER BY created_at DESC LIMIT 1',
+                [email]
             );
+            return rows.length > 0;
         });
-  
-        res.json({ message: 'Rating submitted successfully' });
+
+        if (!otpVerified) {
+            return res.status(400).json({ success: false, message: 'Please verify your email first' });
+        }
+
+        // Check if user already submitted rating for this store
+        const existingRating = await withConnection(async (connection) => {
+            const [rows] = await connection.query(
+                'SELECT * FROM ratings WHERE email = ? AND StoreID = ?',
+                [email, StoreID]
+            );
+            return rows[0];
+        });
+
+        if (existingRating) {
+            // Update existing rating instead of creating new one
+            await withConnection(async (connection) => {
+                await connection.query(
+                    'UPDATE ratings SET rating = ?, submitted_at = ?, name = ?, mobile = ? WHERE email = ? AND StoreID = ?',
+                    [rating, submitted_at || new Date().toISOString(), name || null, mobile || null, email, StoreID]
+                );
+            });
+            res.json({ success: true, message: 'Rating updated successfully' });
+        } else {
+            // Insert new rating
+            await withConnection(async (connection) => {
+                await connection.query(
+                    'INSERT INTO ratings (StoreID, mobile, email, rating, submitted_at, name) VALUES (?, ?, ?, ?, ?, ?)',
+                    [StoreID, mobile || null, email, rating, submitted_at || new Date().toISOString(), name || null]
+                );
+            });
+            res.json({ success: true, message: 'Rating submitted successfully' });
+        }
     } catch (err) {
         console.error('Submit rating error:', err);
-        res.status(500).json({ message: 'Internal server error' });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
@@ -312,7 +361,7 @@ app.post('/getCitiesByState', async (req, res) => {
     }
 });
 
-// Route: Get stores by city ID - UPDATED WITH ALPHABETICAL SORTING
+// Route: Get stores by city ID
 app.post('/getStore', async (req, res) => {
     const { cityid } = req.body;
     if (!cityid) return res.status(400).json({ message: 'City ID is required' });
@@ -337,7 +386,7 @@ app.post('/getStore', async (req, res) => {
     }
 });
 
-// Route: Get stores by city name - UPDATED WITH ALPHABETICAL SORTING
+// Route: Get stores by city name
 app.post('/getStorebyname', async (req, res) => {
     const { cityname } = req.body;
     if (!cityname) return res.status(400).json({ message: 'City name is required' });
@@ -362,7 +411,7 @@ app.post('/getStorebyname', async (req, res) => {
     }
 });
 
-// Route: Get stores by state name - UPDATED WITH ALPHABETICAL SORTING
+// Route: Get stores by state name
 app.post('/getStorebyState', async (req, res) => {
     const { stateid } = req.body;
     if (!stateid) return res.status(400).json({ message: 'State ID is required' });
@@ -403,7 +452,7 @@ app.listen(PORT, () => {
     console.log(`Database connection pool configured with limit: ${pool.config.connectionLimit}`);
 });
 
-// Graceful shutdown - close database connections properly
+// Graceful shutdown
 process.on('SIGINT', () => {
     console.log('Closing database connections and shutting down...');
     pool.end((err) => {
