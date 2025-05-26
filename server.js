@@ -37,7 +37,7 @@ const EMAIL_USER = 'marketing@autoformindia.com';
 const EMAIL_PASS = 'lpzx kisj eeow zpkb';
 
 // Email transporter
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: EMAIL_USER,
